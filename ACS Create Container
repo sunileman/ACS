@@ -1,0 +1,51 @@
+https://docs.microsoft.com/en-us/cli/azure/container?view=azure-cli-latest 
+
+
+az group create --location centralus --name efmassets
+
+az group delete --name efmassets --no-wait --yes
+
+#create nifi registry container with registry
+#http://nifiregistry.centralus.azurecontainer.io:18080/nifi-registry/
+#url for swagger http://nifiregistry.centralus.azurecontainer.io:18080/nifi-registry-api/swagger/ui.html
+az container create --resource-group efmassets --name nifiregistry --image apache/nifi-registry:latest --dns-name-label nifiregistry --ports 18080
+
+
+
+#create efm container with registry enabled
+#http://efmc2.centralus.azurecontainer.io:10080/efm/ui
+az container create --resource-group efmassets --name efmc2 --image sunmanregistry.azurecr.io/efm:1.0.0.1 --dns-name-label efmc2 --ports 10080 8989 --registry-username sunmanregistry --registry-password XXXXXX --environment-variables 'NIFI_REGISTRY_ENABLED'='true' 'NIFI_REGISTRY_BUCKETNAME'='testbucket' 'NIFI_REGISTRY'='http://nifiregistry.centralus.azurecontainer.io:18080'
+
+
+
+
+#create minifi azure/aws container
+ az container create --resource-group efmassets --name minifi --image sunmanregistry.azurecr.io/minifi-java:0.6.0 --dns-name-label minifi --ports 10080 --registry-username sunmanregistry --registry-password XXXXXX --environment-variables 'NIFI_C2_ENABLE'='true' 'MINIFI_AGENT_CLASS'='mytestclass' 'NIFI_C2_REST_URL'='http://efmc2.centralus.azurecontainer.io:10080/efm/api/c2-protocol/heartbeat' 'NIFI_C2_REST_URL_ACK'='http://efmc2.centralus.azurecontainer.io:10080/efm/api/c2-protocol/acknowledge'
+
+
+##NiFi
+##http://nifiui.centralus.azurecontainer.io:8080/nifi/
+az container create --resource-group efmassets --name nifi --image apache/nifi:1.11.4 --dns-name-label nifiui --cpu 4 --memory 16 --ports 8080 10000 7000 7001 7002 7003 7004 --environment-variables 'NIFI_REMOTE_INPUT_HOST'='nifiui.centralus.azurecontainer.io'
+
+
+
+#check logs
+az container logs --resource-group sunmanCentralRG --name efm --follow
+az container logs --resource-group sunmanCentralRG --name minifi --follow
+az container logs --resource-group sunmanCentralRG --name nifiregistry --follow
+az container logs --resource-group efmassets --name nifi --follow
+
+##bash into container
+az container exec --resource-group sunmanCentralRG --name efm --exec-command "/bin/bash"
+az container exec --resource-group sunmanCentralRG --name minifi --exec-command "/bin/bash"
+az container exec --resource-group sunmanCentralRG --name nifiregistry --exec-command "/bin/bash"
+az container exec --resource-group sunmanCentralRG --name nifi --exec-command "/bin/bash"
+
+
+#delete containers
+az container delete --resource-group efmassets --name efmc2 --yes
+az container delete --resource-group efmassets --name minifi --yes
+az container delete --resource-group efmassets --name nifiregistry --yes
+az container delete --resource-group efmassets --name nifi --yes
+
+
